@@ -1,4 +1,3 @@
-
 <h1 align="center">🎫 TicketOn</h1>
 
 <p align="center">
@@ -6,87 +5,67 @@
 </p>
 
 <p align="center">
-  <b>티켓 오픈 순간의 트래픽 폭주를 제어하고 좌석 정합성을 보장하는 공연 예매 플랫폼</b>
+  <b>티켓 오픈 순간의 트래픽을 제어하고 좌석 정합성을 보장하는 공연 예매 플랫폼</b>
 </p>
 
 <p align="center">
-  <a href="https://ticketon.kro.kr"><b>서비스 바로가기</b></a>
+  <a href="https://ticketon.kro.kr"><b>서비스</b></a>
   ·
-  <a href="https://ticketon.kro.kr/swagger-ui"><b>Swagger API</b></a>
+  <a href="https://ticketon.kro.kr/swagger-ui"><b>API 문서</b></a>
   ·
-  <a href="#-기능-시연"><b>기능 시연</b></a>
+  <a href="docs/technical/README.md"><b>기술 문서</b></a>
   ·
-  <a href="#-시스템-아키텍처"><b>아키텍처</b></a>
+  <a href="#기능-시연"><b>기능 시연</b></a>
 </p>
 
 ---
 
+## 핵심 성과
 
-## 📌 프로젝트 개요
+| 좌석 정합성 | 대용량 조회 | 다중 인스턴스 |
+|---|---|---|
+| 동일 좌석 동시 요청 **100건 중 1건 성공** | 회원 검색 300 VU 실패율 **71.2% → 0%** | 정산 배치 **3회 → 1회** |
+| [Redis·DB 부분 실패 보상](docs/technical/seat-consistency.md) | [SQL 실행 시간 877ms → 33ms](docs/technical/performance-bottleneck.md) | [5분간 오류 20건 → 0건](docs/technical/distributed-scheduler.md) |
 
-TicketOn은 단순한 공연 CRUD보다 **대기열·좌석 선점·결제·배치에서 발생하는 동시성 및 정합성 문제를 직접 재현하고 해결하는 것**에 초점을 둔 프로젝트입니다.
-
-- 순간적으로 몰리는 사용자를 Redis 대기열로 순차 입장시킵니다.
-- 동일 좌석에 대한 동시 요청은 Redis 선점과 DB 낙관적 락으로 한 건만 성공시킵니다.
-- DB와 Redis가 함께 움직이지 못하는 구간은 트랜잭션 완료 콜백과 보상 처리로 정합성을 맞춥니다.
-- 다중 인스턴스의 배치 중복 실행은 Redisson 분산락으로 방지합니다.
-- 회원 30만 명, 예매·결제 각 300만 건 환경에서 k6와 Grafana로 병목을 측정했습니다.
-
-### 핵심 성과
-
-| 검증 대상 | 개선·검증 결과 |
-|---|---:|
-| 내 예매 목록 조회 | **62 queries → 5 queries** |
-| 공연 상세 조회 | **616 TPS → 1,660 TPS** |
-| 회원 검색 300 VU 실패율 | **71.2% → 0%** |
-| 회원 검색 `EXPLAIN ANALYZE` | **877ms → 33ms** |
-| 동일 좌석 동시 요청 | **100건 중 1건만 성공** |
-| 다중 인스턴스 배치 | **3회 실행 → 1회 실행** |
+> 회원 30만 명, 예매·결제 각 300만 건의 데이터에서 변경 전후를 비교했습니다. 단일 8GB 머신에서 측정한 상대 비교이며 운영 용량을 의미하지 않습니다.
 
 ---
 
-## 🛠️ 기술 스택
+## 프로젝트 소개
 
-### Backend
+TicketOn은 티켓 오픈 순간 많은 사용자가 동시에 접속하는 상황을 가정한 공연 예매 플랫폼입니다. 기능 구현 자체보다 **대기열·좌석 선점·예매·결제·정산으로 이어지는 흐름에서 발생하는 동시성, 부분 실패와 데이터 정합성 문제를 재현하고 해결하는 것**에 초점을 두었습니다.
 
-![Java](https://img.shields.io/badge/Java_21-007396?style=flat-square&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.4-6DB33F?style=flat-square&logo=springboot&logoColor=white)
-![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white)
-![Spring Batch](https://img.shields.io/badge/Spring_Batch-6DB33F?style=flat-square&logo=spring&logoColor=white)
+Redis는 대기 순서와 임시 좌석 선점처럼 빠르게 변하고 만료가 필요한 상태를 담당하고, MySQL은 예매·결제·정산의 최종 상태를 관리합니다. 두 저장소를 하나의 트랜잭션으로 묶을 수 없는 구간은 소유권 검증과 보상 처리로 연결했습니다.
 
-### Frontend
+또한 단일 서버에서 정상인 기능을 Spring Boot 3대 환경에서 다시 실행해 대기열 승급 경쟁과 정산 스케줄러 중복 실행을 확인했습니다. 성능 개선은 회원 30만 명, 예매·결제 각 300만 건의 데이터에서 같은 조건으로 측정하고, 효과가 없거나 성능을 악화시킨 변경은 원복했습니다.
 
-![Vue.js](https://img.shields.io/badge/Vue.js_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
-![Pinia](https://img.shields.io/badge/Pinia-FFD859?style=flat-square&logoColor=black)
-![Bootstrap](https://img.shields.io/badge/Bootstrap_5.3-7952B3?style=flat-square&logo=bootstrap&logoColor=white)
-![Axios](https://img.shields.io/badge/Axios-5A29E4?style=flat-square&logo=axios&logoColor=white)
+```text
+대기열 → 좌석 선점 → 예매 → 결제 → 정산
+```
 
-### Data & Persistence
+<details>
+<summary><b>설계 목표와 검증 범위 보기</b></summary>
 
-![MySQL](https://img.shields.io/badge/MySQL_8-4479A1?style=flat-square&logo=mysql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis_7-DC382D?style=flat-square&logo=redis&logoColor=white)
-![Redisson](https://img.shields.io/badge/Redisson-DC382D?style=flat-square&logo=redis&logoColor=white)
-![JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=flat-square&logo=spring&logoColor=white)
-![QueryDSL](https://img.shields.io/badge/QueryDSL-0769AD?style=flat-square&logoColor=white)
+<br>
 
-### Infrastructure & Observability
+- 순간 트래픽이 예매 API와 DB로 한꺼번에 전달되지 않도록 진입 인원을 제한합니다.
+- 동일 좌석과 한정 쿠폰에 대한 경쟁 요청은 하나만 성공하도록 원자적으로 처리합니다.
+- Redis 작업 이후 DB 트랜잭션이 실패해도 임시 상태가 남지 않도록 보상합니다.
+- 동일 요청의 재전송과 동시 결제에도 예매·결제 데이터가 중복 생성되지 않도록 멱등성을 검증합니다.
+- 서버가 여러 대여도 대기열 정원을 넘지 않고, 정산 배치가 중복 실행되지 않도록 합니다.
+- 부하 테스트 수치는 단일 8GB 머신에서 측정한 상대 비교로만 사용하며 운영 용량으로 과장하지 않습니다.
 
-![AWS](https://img.shields.io/badge/AWS_EC2_·_S3-FF9900?style=flat-square&logo=amazonwebservices&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
-![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat-square&logo=nginx&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)
-![k6](https://img.shields.io/badge/k6-7D64FF?style=flat-square&logo=k6&logoColor=white)
+</details>
 
 ---
 
-## 🏗️ 시스템 아키텍처
+## 시스템 아키텍처
 
 <p align="center">
   <img src="docs/Ticketon%20아키텍쳐.png" alt="TicketOn 시스템 아키텍처" width="90%" />
 </p>
+
+> 공개 서비스는 단일 VM으로 운영합니다. Spring Boot 3대와 Redis Sentinel 구성은 별도의 확장·장애 실험 환경에서 검증했습니다.
 
 <details>
 <summary><b>ERD 보기</b></summary>
@@ -99,440 +78,59 @@ TicketOn은 단순한 공연 CRUD보다 **대기열·좌석 선점·결제·배�
 
 ---
 
-## 🔗 배포 및 데모 계정
+## 기술 문제 탐색
 
-- **배포 주소**: [https://ticketon.kro.kr](https://ticketon.kro.kr)
-- **API 문서**: [https://ticketon.kro.kr/swagger-ui](https://ticketon.kro.kr/swagger-ui)
-- **공통 비밀번호**: `test1234`
-
-| 역할 | 계정 | 확인 가능한 기능 |
+| 문제 | 핵심 질문 | 상세 문서 |
 |---|---|---|
-| 관리자 | `admin@test.com` | 공연 검수 · 회원 관리 · 매출 통계 · 정산 배치 |
-| 판매자 | `seller1@test.com` | 공연 등록 · 회차 관리 · 정산 내역 |
-| 판매자 | `seller2@test.com` | GOLD 등급 수수료 정산 비교 |
-| 일반 회원 | `normal@test.com` | 대기열 · 좌석 선택 · 예매 · 결제 · 리뷰 |
+| 좌석 정합성 | Redis 선점 이후 DB 저장이 실패하면 좌석은 어떻게 복구할까? | [좌석 선점과 보상 처리](docs/technical/seat-consistency.md) |
+| 대기열 원자성 | 여러 서버가 동시에 입장시켜도 정원을 넘지 않게 하려면? | [다중 인스턴스 대기열](docs/technical/queue-atomicity.md) |
+| 정산 배치 | 서버를 세 대로 늘리자 정산이 세 번 실행된 이유는? | [분산 스케줄러](docs/technical/distributed-scheduler.md) |
+| 성능 병목 | 쿼리를 줄였는데 왜 전체 응답은 여전히 느렸을까? | [측정 기반 성능 개선](docs/technical/performance-bottleneck.md) |
 
-> 공연 제목과 카테고리는 [KOPIS 공연예술통합전산망](https://www.kopis.or.kr)의 실제 공연 정보를 기반으로 구성했습니다. 회차·좌석·가격은 비영리 학습 목적의 시드 데이터입니다.
-
----
-
-## 🚀 핵심 기술 도전
-
-| 문제 | 선택한 방법 | 검증 |
-|---|---|---|
-| 순간 트래픽 제어 | Redis ZSet 대기열 + Lua 원자화 | 중복 대기·정원 초과 동시성 테스트 |
-| 동일 좌석 경합 | Redis `SET NX` + DB 낙관적 락 | 100개 요청 중 1건 성공 |
-| 외부 저장소 정합성 | 트랜잭션 콜백 + 소유자 검증 보상 | 커밋·롤백 통합 테스트 |
-| 배치 중복 실행 | Redisson 분산락 | 앱 3대에서 3회 → 1회 |
-| Redis 장애 | Sentinel 3대 + Replica 2대 | 마스터 장애·복구 6회 실측 |
-
-<details>
-<summary><b>성능 개선·다중 인스턴스·Redis HA 상세 기록 펼치기</b></summary>
-
-<br>
-
-### 🎟️ 대기열 (Queue)
-대량 동시 접속을 **Redis ZSet 기반 대기열**로 정원 제어 · 순번 관리
-
-### 💺 좌석 선점 동시성
-100명이 같은 좌석을 동시에 눌러도 **Redis SET NX로 단 1명만 성공** (정합성 테스트로 검증)
-
-### 🎫 쿠폰 선착순
-한정 수량을 **Redis DECR**로 초과 발급 없이 정확히 소진 (DB는 발급 이력의 SSOT)
-
-### 💰 정산 배치 (Spring Batch)
-
-공연 종료 후 판매자 정산을 **건별 명세 → 집계** 구조로 처리한다.
-
-- **왜 건별인가**: 집계만 저장하면 "정산액 8억"이라는 숫자만 남고 **근거가 사라진다.**
-  판매자가 검증할 수 없고, 분쟁 시 근거를 댈 수 없으며, 수수료 정책이 바뀌면 과거 금액을 재현할 수 없다.
-  → 결제 1건 = 명세 1행으로 저장하고, **적용 등급·수수료율·결제시각을 스냅샷**으로 박제
-- **왜 Batch인가**: 양이 많아서가 아니라 **돈이라서**. 실행 이력 · 재시작 · Skip 추적 같은 운영 인프라가 필요했고,
-  건별로 저장하다 보니 자연히 대량이 되어 Chunk 기반 처리가 맞았다.
-  (반대로 **통계는 집계만 필요해 Batch 없이 SQL 한 번**으로 처리 — 요구 성격에 따라 도구를 나눴다)
-- **취소 소급 재집계**: 정산 이후 환불이 발생하면 결제 취소를 이벤트(`AFTER_COMMIT`)로 감지해 재집계 대기열에 적재,
-  스케줄러가 **멱등 재실행**(DELETE & INSERT)으로 금액을 보정한다. 실패하면 대기열을 유지해 다음 실행에 재시도
-
-| 구성 | 내용 |
-|------|------|
-| Reader | `JdbcCursorItemReader` — 대량을 메모리에 올리지 않고 스트리밍 |
-| Processor | 등급별 차등 수수료(enum이 정책 소유) + 정합성 검증 + filter/skip 분리 |
-| Writer | JDBC Batch Insert — 대량 쓰기의 표준 구조 |
-| 멱등 | Step0에서 대상 날짜 삭제 후 재적재 → 몇 번을 실행해도 결과 동일 |
-
-> 검증: 통합 테스트 5개(명세 생성 · 스냅샷 · 취소 감지 · 재집계 · 멱등) — 수수료율은 `SellerGrade` enum이 소유(BRONZE 10% / SILVER 8% / GOLD 5%)
-> 성능: chunk · fetchSize 측정 결과는 아래 [성능 개선](#-성능-개선--측정--개선--재측정--다음-병목) 참고
-
-### ⚡ 성능 개선 — 측정 → 개선 → 재측정 → 다음 병목
-
-> 데이터: 회원 30만 / 예매·결제 각 300만 · 부하: k6 3분 · 모니터링: Prometheus + Grafana
-> ⚠️ 단일 8GB 머신에 앱·MySQL·Redis·k6가 동거하는 환경이라 **절대값이 아닌 상대 비교**로 읽어야 한다.
-
-#### 쿼리 수 (Hibernate `Statistics` — 테스트로 박제)
-
-| 대상 | 개선 전 | 개선 후 | 방법 |
-|------|--------|--------|------|
-| 내 예매 목록 (findMine) | 62 쿼리 | **5 쿼리** | fetch join + `batch_size` |
-| 좌석 목록 (findByScheduleId) | 101 쿼리 | **≤3 쿼리** | fetch join |
-| 공연 상세 (find) | 매 요청 DB | **DB 접근 0** | `@Cacheable` (Redis) |
-
-#### 부하 하 응답시간 (k6)
-
-| 대상 | 조건 | 개선 전 | 개선 후 |
-|------|------|--------|--------|
-| findMine | 100 VU p95 | 2.02s | **797ms** (TPS 83→167) |
-| 공연 상세 캐시 | 100 VU p95 | 268ms | **101ms** (TPS 616→**1,660**) |
-| 관리자 회원검색 | 100 VU p95 | 31.8s | **7s** (TPS 3.6→15.2) |
-| 관리자 회원검색 | **300 VU 실패율** | **71.2%** (서비스 붕괴) | **0%** |
-
-`member_status` 검색은 인덱스가 없어 300만 행 풀스캔 + filesort를 하고 있었고,
-300 VU에서 **71%가 타임아웃으로 실패**했다. `(member_status, created_at)` 복합 인덱스로 실패율 0%까지 회복했다.
-
-```
-EXPLAIN        type=ALL  rows≈296,246  Using filesort
-        ↓ 인덱스
-EXPLAIN        type=ref  rows=16,648   Backward index scan   (filesort 제거)
-EXPLAIN ANALYZE  877ms → 33ms  (약 26배)
-```
-
-#### 병목은 이동한다 — 쿼리를 고치니 커넥션이 드러났다
-
-fetch join으로 TPS가 2배가 되자, 그전엔 **0이던 HikariCP Pending이 90까지** 올라왔다.
-"대기 때문일 것"이라는 추측을 검증하려고 acquire time을 측정했다.
-
-```
-SQL 실행 시간 (EXPLAIN ANALYZE)     33ms
-커넥션 획득 대기 (Grafana 실측)      ~3,000ms      ← 응답시간의 주요 축
-GC pause (1시간 누적)               150ms (최대 21ms)  → 요인에서 배제
-k6 p95 (100 VU)                     7,000ms
-```
-
-**커넥션 풀을 10→30으로 늘려봤지만 두 API 모두 p95가 오히려 악화**(2.3s→3.5s, 7s→9.7s)했고
-Active는 평균 4·최대 13에 그치고 Idle이 25개 남았다. → **풀 확장은 답이 아니라고 판단하고 원복**했다.
-
-> acquire 3초 + SQL 33ms로도 p95 7초가 다 설명되지 않는다. 나머지는 톰캣 스레드풀 큐잉 등으로 **추정**되지만
-> 분리 측정을 하지 못해 단정하지 않는다. 측정하지 않은 것은 측정하지 않았다고 적는다.
-
-#### 캐시의 목적은 응답속도가 아니라 DB 부하 흡수
-
-공연 상세는 PK 단건 조회라 10 VU에선 캐시 없이도 17ms로 빠르다. 캐시 가치는 부하에서 드러났다.
-
-| 100 VU | 캐시 OFF | 캐시 ON |
-|---|---|---|
-| p95 | 268ms | **101ms** |
-| TPS | 616/s | **1,660/s** |
-| DB 커넥션 Active | 0~3 (가끔 DB 감) | **0** (DB에 아예 안 감) |
-
-k6가 "얼마나 좋아졌나"(결과)를, 커넥션 그래프가 "왜 좋아졌나"(DB 도달 제거)를 보여준다.
-
-#### 정산 배치 — 값이 자명하지 않은 노브만 측정
-
-대량 INSERT에 JDBC Batch Insert를 쓰는 건 자명한 표준이라 **측정 대상으로 삼지 않았고**,
-최적값을 판단해야 하는 `chunk`·`fetchSize`만 실측했다. (표본 89,424건 · 설정당 3회 · 1회차 폐기)
-
-| chunk | 커밋 횟수 | 처리 시간 | rows/sec |
-|---:|---:|---:|---:|
-| 100 | 895 | 19.66s | 4,548 |
-| 500 | 179 | 13.29s | 6,728 |
-| **1000** | 90 | **13.55s** | 6,600 |
-| 2000 | 45 | 12.18s | 7,342 |
-| 5000 | 18 | 14.26s | 6,271 |
-
-**chunk 100은 확실히 손해(+45%), 500 이상은 평탄**하다. 2000이 가장 좋게 나왔지만 회차 편차가 1~3초라
-"2000이 최적"이라 단정할 근거가 없어 **1000을 유지**했다. 즉 chunk는 *임계값만 넘기면 되는* 노브다.
-
-`fetchSize`는 100~5000을 바꿔도 전부 12.8~13.6s로 회차 편차와 같았다. 원인을 추적하니
-**MySQL Connector/J는 `useCursorFetch=true` 없이는 `setFetchSize()`를 무시**한다는 걸 확인했고,
-옵션을 켜니 오히려 20% 느려졌다. → **시간 지표로는 판단할 수 없는 항목**으로 기록하고 설정은 유지했다.
-
-### 🖧 다중 인스턴스 — 단일 서버에선 보이지 않던 결함
-
-배포 서버는 프리티어 1대라, 로컬 Compose에 **Nginx + 백엔드 3대**를 띄워 운영 환경을 재현했다.
-목적은 "여러 대로 띄우기"가 아니라 **서버가 하나일 때는 드러나지 않는 문제를 찾는 것**이었다.
-
-#### 안 깨진 것 — 상태를 애플리케이션 밖에 뒀기 때문
-
-| 검증 | 결과 |
-|------|------|
-| 요청 분산 (20회, round-robin) | 7 / 7 / 6 |
-| 인스턴스 1대 강제 종료 후 12회 요청 | **전부 200** — 죽은 서버로 간 2건은 Nginx가 다른 인스턴스로 자동 재시도 |
-| 로그인→대기열→예매→결제→취소를 **매 단계 다른 서버**로 호출 | 전 구간 성공 |
-
-세션을 서버 메모리에 두면 sticky session이 필요하지만, 인증은 JWT라 서버가 상태를 들고 있지 않고
-대기열·좌석 선점은 Redis, 예매·결제는 DB에 있다. **8082에서 입장한 대기열을 8083이 인정하고,
-8083이 선점한 좌석을 8081이 결제**하는 것까지 확인했다.
-
-#### 깨진 것 — `@Scheduled` 배치가 인스턴스마다 각자 돌았다
-
-cron이 같으니 3대가 같은 시각에 깨어난다. `BATCH_JOB_EXECUTION`에 그대로 남았다.
-
-```
-39   13:55:07.359   COMPLETED
-40   13:55:07.391   COMPLETED     30ms 안에 정산이 세 번 완주
-41   13:55:07.404   COMPLETED
-```
-
-동시 실행은 서로를 밟았고, 두 계층에서 다르게 깨졌다.
-
-| 계층 | 예외 | 결과 |
-|------|------|------|
-| Batch 메타 테이블 | `Deadlock found` (`INSERT INTO BATCH_JOB_INSTANCE`) | 정산이 **시작조차 못 함** |
-| 비즈니스 데이터 | `ObjectOptimisticLockingFailureException` | 통계가 **쓰다가 실패** |
-
-5분 관측에 데드락 20건. 결과는 타이밍에 좌우됐다 — 데드락이 2개 나면 1회 실행, 안 나면 3회 실행,
-셋 다 나면 **그날 정산이 아예 없다**. 결제 2건짜리 데이터로 돌렸을 때 명세가 **6건**까지 쌓였다.
-
-#### 원인 — 재집계를 위해 Spring Batch의 중복 방지를 스스로 껐다
-
-Spring Batch는 같은 `JobParameters`면 재실행을 막는다. 그런데 정산은 **취소가 발생하면 그 날짜를
-다시 집계**해야 해서(더티 큐), `timestamp`를 넣어 매번 새 `JobInstance`가 되게 했다.
-
-```
-timestamp 있음 → 재집계 가능 ✅ / 중복 방지 ❌
-timestamp 없음 → 재집계 불가 ❌ / 중복 방지 ✅
-```
-
-**둘 다 가지려면 별도의 잠금이 필요**했다. 대기열 승급에 이미 쓰던 Redisson 락을 같은 패턴으로 적용했다.
-`tryLock()`은 무인자로 호출해 **대기 없이 즉시 포기**시킨다. 기다리면 순서만 줄 세울 뿐 결국 셋 다 돌기 때문이다.
-
-#### 결과 — 같은 테스트, 프로덕션 코드만 변경
-
-```
-[적용 전]                              [적용 후]
-동시 실행 인스턴스 : 3대                동시 실행 인스턴스 : 3대
-배치 실행 시도     : 3회  (정상 1회)    배치 실행 시도     : 1회  (정상 1회)
-배치 실행 완료     : 3회  (정상 1회)    배치 실행 완료     : 1회  (정상 1회)
-FAILED                                 PASSED
-```
-
-실제 인스턴스 3대에서도 **분당 3회 → 1회**, 5분간 오류 **20건 → 0건**으로 확인했다.
-
-> 테스트는 한 JVM의 스레드 3개라 실제보다 훨씬 촘촘하게 겹친다. 그대로 두면 오히려 메타 테이블
-> 데드락이 나서 중복이 가려지므로, **실측한 인스턴스 간 시작 간격(0/32/45ms)을 재현**했다.
-
-#### 알고도 하지 않은 것
-
-오픈소스 Nginx는 능동 헬스체크가 없다. 완전히 죽은 서버는 요청 실패로 감지되지만,
-**살아 있으면서 에러만 반환하는 상태는 걸러내지 못한다**. 서드파티 모듈은 Nginx 소스 재컴파일이
-필요한 데다 패치가 1.20 대에 멈춰 있어, **외부에 직접 노출되는 지점의 보안 패치를 포기하는 비용이 더 크다**고
-판단해 넣지 않았다. 규모가 커지면 쿠버네티스 readiness probe로 가는 것이 정공법이라고 본다.
+[전체 기술 문서 보기](docs/technical/README.md)
 
 ---
 
-멀티 인스턴스 환경을 구성한 결과, **JWT·대기열·좌석 선점은 별도 수정 없이 정상 동작**했다.
-상태를 애플리케이션이 아니라 Redis와 DB에 둔 설계가 그대로 검증된 셈이다.
-반면 `@Scheduled` 기반 배치는 **단일 서버에서는 발견되지 않던 중복 실행 문제**가 드러났고, Redis 분산 락으로 해결했다.
+## 기술 스택
 
-### 🔴 Redis 이중화 — 단일 장애점 제거
+### Backend
 
-캐시는 Redis가 죽어도 DB로 우회하도록 만들어 뒀지만, **대기열·좌석 선점·쿠폰은 Redis가 원본이라 우회할 곳이 없다.**
-게다가 위에서 배치 분산 락까지 Redis에 얹었다. Redis 하나가 멈추면 예매 전체가 멈추는 구조라 이중화가 필요했다.
+![Java](https://img.shields.io/badge/Java_21-007396?style=flat-square&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.4-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white)
+![Spring Batch](https://img.shields.io/badge/Spring_Batch-6DB33F?style=flat-square&logo=spring&logoColor=white)
+![JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=flat-square&logo=spring&logoColor=white)
+![QueryDSL](https://img.shields.io/badge/QueryDSL-0769AD?style=flat-square&logoColor=white)
 
-```
-Sentinel ×3          과반 투표로 장애 판정 · 승격 집행
-     │
-  Master  ──┬── Replica1
-            └── Replica2
-```
+### Data & Coordination
 
-#### 페일오버 실측 — "무중단"이 아니라 "자동 복구"다
+![MySQL](https://img.shields.io/badge/MySQL_8-4479A1?style=flat-square&logo=mysql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis_7-DC382D?style=flat-square&logo=redis&logoColor=white)
+![Redisson](https://img.shields.io/badge/Redisson-DC382D?style=flat-square&logo=redis&logoColor=white)
 
-마스터를 강제로 죽이고 API를 0.4초 간격으로 호출하며 복구까지의 시간을 쟀다. **6회 측정.**
+### Test & Observability
 
-| 회차 | 1 | 2 | 3 | 4 | 5 | 6 |
-|---|---|---|---|---|---|---|
-| 복구 | 23초 | 3.5초 | 2.9초 | **63초** | 4.9초 | 4.2초 |
+![JUnit5](https://img.shields.io/badge/JUnit_5-25A162?style=flat-square&logo=junit5&logoColor=white)
+![k6](https://img.shields.io/badge/k6-7D64FF?style=flat-square&logo=k6&logoColor=white)
+![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)
 
-4회는 3~5초, 2회는 20초를 넘겼다. 느렸던 회차의 Sentinel 로그에는 공통적으로 이게 찍혔다.
+### Infrastructure
 
-```
--failover-abort-not-elected      리더 선출에 실패해 페일오버를 중단하고 재시도
-```
+![AWS](https://img.shields.io/badge/AWS_EC2_·_S3-FF9900?style=flat-square&logo=amazonwebservices&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat-square&logo=nginx&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 
-두 회차 모두 앱 3대 기동 직후·재빌드 직후로 **호스트 부하가 높던 시점과 겹쳤다**. CPU 사용률을 함께 재지 않아 인과로 단정하지는 않는다.
-정상 회차의 내부 타임라인은 이랬다.
+### Frontend
 
-```
-+try-failover     11:22:43.841
-+elected-leader   11:22:43.909    (0.07초)
-+switch-master    11:22:44.940    (총 1.1초)
-```
-
-**Sentinel은 무중단 장치가 아니다.** 전환되는 수 초 동안 요청은 실제로 실패한다. 다만 사람이 새벽에 깨어나 조치할 일이
-"아침에 여유 있게" 로 바뀐다. 장애를 없애는 게 아니라 **긴급도를 낮추는 것**이 HA의 실질적 가치다.
-
-#### 밟은 함정 세 개
-
-**① 호스트명으로 감시하면 페일오버가 아예 안 된다**
-
-```
-# Failed to resolve hostname 'redis-master'
-# +tilt #tilt mode entered
-```
-
-컨테이너가 죽는 순간 Docker DNS에서 이름이 사라져 Sentinel이 감시 대상을 찾지 못했고, tilt 모드에 빠져
-**장애 판정조차 못 했다.** 감시 대상은 사라져도 주소가 유지돼야 하므로 고정 IP로 바꿨다.
-
-**② Redisson에는 락 복제 검증 장치가 있다**
-
-```
-IllegalStateException: None of slaves were synced.
-```
-
-Redisson은 락 획득 시 `WAIT` 명령으로 복제본 동기화를 확인한다(기본 활성). 그런데 **복제본이 1개면 승격 직후 0개가 되어**
-검증 자체가 불가능해 락이 실패했다. 이 옵션을 끄면 동작하지만 그건 락 유실 가능성을 받아들이는 선택이라,
-**복제본을 2개로 늘려 검증을 켠 채로 해결**했다. 이후 페일오버 3회에서 락 예외 **0건**.
-
-**③ `docker kill`은 자동 재시작 대상이 아니다**
-
-`restart: unless-stopped`를 걸어도 `kill`·`stop`은 "사용자 의도 종료"로 기록되어 재시작하지 않는다.
-진짜 크래시는 컨테이너 안에서 프로세스를 죽여야 재현된다.
-
-```bash
-docker exec ha-redis-master redis-cli shutdown nosave
-```
-
-이 방식으로는 **사람 개입 없이 25초 만에 완전 복구**됐다(크래시 → 컨테이너 자동 재시작 → Sentinel 재편성).
-부활한 노드는 옛 역할을 주장하지 않고 5초 내 복제본으로 강등된다.
-
-#### 남은 한계
-
-Redis Sentinel은 비동기 복제 기반이라 **페일오버 순간 마스터에만 있던 락 키가 유실될 가능성**이 있다.
-정산 배치는 하루 1회 실행되고 재집계가 가능한 멱등 작업이라는 점을 고려해 이 특성을 수용했다.
-완전히 막으려면 Redlock이 필요하지만 논쟁이 있는 방식이고, 현재 규모에는 과하다고 판단했다.
-
-또한 이 구성은 컨테이너가 **모두 같은 호스트에 있어 프로세스 장애까지만 방어한다.** 실서비스라면 마스터와 복제본을
-다른 가용영역에 두어야 한다. 가용성은 노드 개수가 아니라 **장애 도메인이 분리됐는지**의 문제다.
-
-#### 검증 방식을 나눈 기준
-
-| 대상 | 증명 방법 | 이유 |
-|------|-----------|------|
-| 배치 중복 실행 | **테스트 코드** | 애플리케이션 로직이라 CI에서 계속 검증 가능 |
-| 요청 분산 · 인스턴스 장애 | **실행 결과 수치** | 인프라 동작이라 JUnit 범위 밖 |
-| Sentinel 페일오버 | **실행 결과 + Sentinel 로그** | 컨테이너를 죽여야 하는 검증 |
-
-모든 것을 테스트 코드로 만들지 않았다. 로직은 테스트로, 인프라는 실제 구성과 측정값으로 검증하는 것이
-이 프로젝트의 성능 개선 섹션(k6·Grafana)과도 일관된 방식이다.
-
-### 🛡️ 예외 처리 — 클라이언트 실수와 서버 장애를 분리
-
-배포 후 실측에서 `GET /events/abc`(경로 변수 타입 불일치), 깨진 JSON, 로그인 실패가 **전부 500**으로 나갔다.
-`@ExceptionHandler(Exception.class)` catch-all이 경쟁자 없이 모든 예외를 받아, Spring 기본 예외 변환기가 400·405로 만들 기회 자체가 없었기 때문이다.
-
-`ResponseEntityExceptionHandler`를 상속해 **Spring MVC 표준 예외 21종**의 매핑을 확보하고,
-`handleExceptionInternal` 하나를 오버라이드해 공통 응답 래퍼(`BaseResponse`)로 변환했다.
-
-| 요청 | 전 | 후 |
-|------|----|----|
-| `/events/abc` · 깨진 JSON · `@Valid` 실패 | 500 | **400** / 9002 |
-| 미지원 메서드 · Content-Type 불일치 | 500 | **405 · 415** |
-| 로그인 비밀번호 오류 | 500 | **401** / 2004 |
-| 5MB 초과 업로드 | 500 | **400** / 9006 |
-| NPE · Redis 장애 | 500 | 500 / 9001 *(유지)* |
-
-**분류 기준**: 클라이언트가 고칠 수 있는 것만 4xx로 내리고, 서버·인프라 문제는 500으로 남긴다.
-NPE를 400으로 바꾸면 서버 버그가 클라이언트 잘못으로 위장되어 로그·알람이 헛발질한다.
-
-- **인증 실패**는 `BadCredentials`·`Disabled`·`Locked`를 상위 `AuthenticationException`에서 한 응답으로 묶었다 — **계정 존재 여부 비노출** (없는 계정과 비밀번호 오류가 동일하게 401/2004)
-- **`DataIntegrityViolationException`**을 409로 처리 — `existsBy` 사전 체크는 check-then-act라 동시 요청에서 뚫리므로, DB UNIQUE 제약이 최종 방어선
-- **업로드 한도**를 5MB로 맞춤 — Spring 기본 1MB라 서비스단 5MB 검증에 도달하지 못하던 문제
-
-</details>
-
-### 🧭 검토했지만 적용하지 않은 개선
-
-**측정으로 병목이 재현되지 않으면 넣지 않는다**는 기준으로 판단했다.
-
-| 개선안 | 적용 안 한 이유 |
-|--------|----------------|
-| **커넥션 풀 확장 (10→30)** | **실측 결과 두 API 모두 p95 악화**(2.3s→3.5s, 7s→9.7s). Pending은 0이 됐지만 Active는 평균 4에 그치고 Idle이 25개 남음 → 풀이 병목이 아니었음. **적용했다가 측정 후 원복** |
-| 정산 Reader `end_date` 인덱스 | EXPLAIN상 비효율은 있었으나 읽는 대상이 **520행**이라 13초 배치에서 비중이 없음. 공연 수가 수만 건이 되면 재검토 |
-| `useCursorFetch=true` | 서버사이드 커서를 켜니 오히려 **20% 느려짐**. 현재 규모에선 메모리보다 처리 시간이 중요 |
-| Cursor(No-offset) 페이징 | 내 예매 목록은 회원당 수백 건이라 offset 병목이 재현되지 않음. 실제 대용량 목록에서는 유효한 접근 |
-| `findMine` 복합 인덱스 | `member_id`는 FK라 이미 인덱스를 타고, 정렬 대상도 소량이라 이득 < 쓰기 비용. 예매는 쓰기가 잦은 테이블 |
-| 메시지 큐(Kafka 등) | 처리량 병목이 발생하지 않았고, 운영 복잡도만 늘어남 |
-| Read Replica · MySQL 파라미터 튜닝 | 단일 인스턴스 환경에서 검증할 수 없어 판단 근거를 만들 수 없음 |
-
-### 🚧 기능 범위 — 알고 넣지 않은 것
-
-위가 **측정 기준**의 성능 판단이라면, 이쪽은 **스코프 판단**이다.
-동시성 · 정합성 · 배치에 집중하려고 아래는 의도적으로 뺐다.
-상태값만 정의하고 전환 로직을 넣지 않은 것도 섞여 있어 그 구분까지 적는다.
-
-| 넣은 것 | 넣지 않은 것 | 이유 |
-|---------|-------------|------|
-| 쿠폰 선착순 발급 (Lua 원자 연산 + 보상 트랜잭션) | 결제 시 쿠폰 적용 | 학습 목표가 **발급 시점의 경합**이었다. 할인 금액 계산에는 동시성 문제가 없다 |
-| 회원 상태 5종 (`PENDING`·`ACTIVE`·`DORMANT`·`SUSPENDED`·`WITHDRAWN`) | 이메일 인증 · 휴면 전환 배치 | 상태와 전이 규칙은 정의했지만 메일 발송은 외부 인프라라 제외했다. `PENDING`도 로그인은 허용된다 |
-| 예매 · 결제 · 회원 이력 테이블 | 공연 가격 변경 이력 | 가격을 수정하는 API 자체가 없어 이력이 생길 지점이 없다 |
-| 좌석 선점 TTL(Redis) + DB 낙관적 락 | 만료된 `PENDING` 예매 정리 배치 | 좌석은 TTL로 풀리지만 예매 row는 남는다 |
-| 예매 취소 · 환불 | 취소 가능 기한 정책 | 공연이 끝난 뒤에도 취소된다 |
-| 회원 탈퇴 (상태 전환) | 탈퇴 시 이메일 마스킹 | UNIQUE 제약이 남아 같은 이메일로 재가입할 수 없다 |
-| 공연 검수 (`APPROVED` / `REJECTED`) | `CLOSED` 전환 | enum에는 있으나 전환 코드가 없어 기간이 지난 공연도 목록에 남는다 |
+![Vue.js](https://img.shields.io/badge/Vue.js_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Pinia](https://img.shields.io/badge/Pinia-FFD859?style=flat-square&logoColor=black)
 
 ---
 
-## ⚙️ 인프라 구성 및 CI/CD
-
-```
-                     ┌──────────────────────────────────┐
-   브라우저  ──HTTPS─▶│  Nginx  (443 · Let's Encrypt)    │
-                     │   ├─ /       → Vue 정적 파일       │
-                     │   └─ /api/*  → Spring (8080)      │
-                     └──────────────┬───────────────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              ▼                     ▼                     ▼
-      ┌───────────────┐     ┌──────────────┐     ┌───────────────┐
-      │ Spring Boot   │────▶│  MySQL 8     │     │   Redis 7     │
-      │ (컨테이너)     │     │ (컨테이너)    │     │  (컨테이너)    │
-      └───────┬───────┘     └──────────────┘     └───────────────┘
-              │                  영속 데이터        대기열 · 좌석 선점
-              │                                    쿠폰 · 캐시 · 리프레시 토큰
-              ▼
-      ┌───────────────┐
-      │   AWS S3      │  포스터 이미지 (IAM 역할 인증 — 액세스 키 0줄)
-      └───────────────┘
-
-              ── AWS EC2 t3.micro (ap-northeast-2) 단일 VM ──
-```
-
-**단일 VM 4컨테이너 구성.** 프리티어 제약도 있지만, 트래픽이 요구하기 전에 관리형 서비스(RDS·ElastiCache·ALB)로 가면
-비용만 늘고 배울 게 없다고 판단했다. 컨테이너 경계는 그대로라 필요 시점에 교체 가능하다.
-
-### 🔄 CI/CD (GitHub Actions)
-
-```
-feature 브랜치 ──PR──▶ dev ──PR──▶ main
-                       │             │
-                       │             └─▶ [배포] 이미지 pull → compose up -d
-                       └─▶ [CI] Gradle 테스트 (MySQL·Redis service 컨테이너)
-                               → Docker 빌드 → GHCR push → SSH 배포
-```
-
-- **테스트 격리**: CI 러너에 로컬 MySQL/Redis가 없으므로 GitHub Actions `services`로 띄우고, 로컬 시드 의존 테스트는 `@Tag("local")`로 제외
-- **시크릿**: DB 비밀번호 · JWT 키 · SSH 키는 GitHub Secrets에서 주입. **저장소에 자격증명 0줄**
-- **S3 인증**: 액세스 키를 만들지 않고 **EC2 IAM 역할**로 처리. 로컬은 `aws.s3.enabled=false`로 분기해 placeholder 반환
-
----
-
-## ✨ 주요 기능
-
-| 도메인 | 기능 |
-|--------|------|
-| 회원 | 일반/판매자 회원가입 · JWT 로그인 · Refresh 토큰 재발급(Redis) · 정지/탈퇴 즉시 차단 |
-| 공연 | 등록 · 관리자 검수(승인/반려) · 목록/상세(캐시) · 카테고리·검색 · 인기순·별점순 랭킹 |
-| 예매 | 대기열 통과 → 좌석 선점(7분 TTL) → 예매 → 결제 · 취소 · 멱등키 중복 방지 |
-| 결제 | 모의 결제 · 결제 이력 스냅샷 · 취소 시 정산 재집계 이벤트 발행 |
-| 대기열 | Redis ZSet 순번 관리 · 정원 제어 · 폴링 기반 입장 |
-| 쿠폰 | 선착순 발급(Redis DECR) · 중복 발급 방지 · 정액/정률 할인 |
-| 정산 | Spring Batch 건별 명세 → 집계 · 등급별 수수료 차등 · 취소 소급 재집계 |
-| 통계 | 일별 매출·주문 집계(배치) · 오늘분은 실시간 하이브리드 조회 |
-| 후기 | 예매 확정자만 작성 · 별점 · 실명 마스킹(서버 처리) |
-
----
-
-## 🎬 기능 시연
+## 기능 시연
 
 <details>
 <summary><b>일반 회원 — 공연 예매·결제·취소</b></summary>
@@ -545,25 +143,6 @@ feature 브랜치 ──PR──▶ dev ──PR──▶ main
 
 <p align="center">
   <img src="docs/시연영상.gif/마이페이지%20예매%20정보.gif" alt="예매 조회와 취소" width="90%" />
-</p>
-
-</details>
-
-<details>
-<summary><b>일반 회원 — 회원가입·로그인·리뷰</b></summary>
-
-<br>
-
-<p align="center">
-  <img src="docs/시연영상.gif/회원가입.gif" alt="회원가입" width="90%" />
-</p>
-
-<p align="center">
-  <img src="docs/시연영상.gif/로그인.gif" alt="로그인" width="90%" />
-</p>
-
-<p align="center">
-  <img src="docs/시연영상.gif/리뷰%20등록.gif" alt="리뷰 등록" width="90%" />
 </p>
 
 </details>
@@ -593,10 +172,6 @@ feature 브랜치 ──PR──▶ dev ──PR──▶ main
 </p>
 
 <p align="center">
-  <img src="docs/시연영상.gif/관리자%20공연%20반려.gif" alt="공연 반려" width="90%" />
-</p>
-
-<p align="center">
   <img src="docs/시연영상.gif/관리자%20회원%20관리.gif" alt="회원 관리" width="90%" />
 </p>
 
@@ -605,59 +180,3 @@ feature 브랜치 ──PR──▶ dev ──PR──▶ main
 </p>
 
 </details>
-
-> 대기열 순차 입장과 두 사용자 간 좌석 선점 경합 시연은 추가할 예정입니다.
-
----
-
-## 📚 상세 문서
-
-- 📘 **[API 문서 (Swagger UI)](https://ticketon.kro.kr/swagger-ui)** — 58개 엔드포인트, 배포 서버에서 직접 호출 가능
-- 📖 **ADR** — 기술 의사결정 기록 13건 (왜 Sentinel인가, 왜 커넥션 풀 확장을 원복했나 등)
-
-> 응답 코드는 `BaseResponseStatus` enum 한 곳에 정의되어 있다. Swagger에 응답 코드를 개별 어노테이션으로
-> 흩뿌리는 대신, 코드가 곧 명세가 되도록 enum을 단일 출처로 유지했다.
-
----
-
-## 🔗 실행 방법
-
-### Backend (port 8080)
-```bash
-./gradlew bootRun
-```
-
-### Frontend (port 5173)
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### 환경 변수
-`application-local.properties` 또는 환경 변수로 주입:
-
-| Key | 설명 |
-|-----|------|
-| `DB_USERNAME` | MySQL 사용자 (기본: root) |
-| `DB_PASSWORD` | MySQL 비밀번호 |
-| `JWT_SECRET` | JWT 서명 키 (32바이트 이상) |
-
-> 운영(prod)에서는 폴백 기본값을 두지 않아 **미주입 시 기동이 실패**한다 — 개발용 값이 운영에 새는 것을 막기 위함.
-
-### 전체 스택 실행 (Docker Compose)
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
-Nginx · Spring · MySQL · Redis 4컨테이너가 함께 뜬다. `.env`에 위 키들을 채워야 한다.
-
-### 접속 경로
-
-| | 로컬 | 배포 |
-|---|---|---|
-| 서비스 | `http://localhost:5173` | https://ticketon.kro.kr |
-| API | `http://localhost:8080` | `https://ticketon.kro.kr/api` |
-| API 문서 | `http://localhost:8080/swagger-ui` | https://ticketon.kro.kr/swagger-ui |
-
-> 배포는 Nginx가 `/api` prefix를 벗겨 백엔드로 전달한다. Swagger 문서의 서버 주소도 환경별로 달라지도록
-> `springdoc.server-url`을 prod 프로파일에서만 지정했다.
