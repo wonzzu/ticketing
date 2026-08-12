@@ -53,6 +53,16 @@ Spring #3 ─┘
 - 실제 환경 분당 실행: **3회 → 1회**
 - 5분간 오류: **20건 → 0건**
 
+### 실제 실행 결과
+
+분산락 적용 전에는 같은 시각에 세 개의 Batch Job 실행 이력이 생성됐다.
+
+![분산락 적용 전 Batch 실행 이력](../performance/batch-executions-before.png)
+
+| 적용 전 | 적용 후 |
+|---|---|
+| ![분산락 적용 전](../performance/batch-lock-before.png) | ![분산락 적용 후](../performance/batch-lock-after.png) |
+
 ## 남은 한계
 
 - 분산락은 Redis 가용성에 의존한다. Redis 장애 시 중복 실행보다 정산 미실행을 선택한다.
