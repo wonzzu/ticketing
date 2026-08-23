@@ -3,6 +3,7 @@ package com.ticketing.admin.dto.response;
 import com.ticketing.member.domain.Member;
 import com.ticketing.member.domain.MemberStatus;
 import com.ticketing.member.domain.MemberType;
+import com.ticketing.member.dto.response.MemberSearchResult;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -36,4 +37,19 @@ public class AdminMemberListResponseDto {
                 .createdAt(member.getCreatedAt())
                 .build();
     }
+
+    public static AdminMemberListResponseDto from(MemberSearchResult member) {
+        return AdminMemberListResponseDto.builder()
+                .id(member.id())
+                .email(member.email())
+                .name(member.name())
+                .phone(member.phone())
+                .memberType(member.memberType())
+                .memberTypeLabel(member.memberType().getDescription())
+                .memberStatus(member.memberStatus())
+                .memberStatusLabel(member.memberStatus().getDescription())
+                .createdAt(member.createdAt())
+                .build();
+    }
+
 }

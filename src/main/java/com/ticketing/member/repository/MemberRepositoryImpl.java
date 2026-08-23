@@ -1,12 +1,13 @@
 package com.ticketing.member.repository;
 
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import com.ticketing.member.domain.Member;
 import com.ticketing.member.domain.MemberStatus;
 import com.ticketing.member.domain.MemberType;
 import com.ticketing.member.dto.request.MemberSearchCond;
+import com.ticketing.member.dto.response.MemberSearchResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,10 +24,20 @@ public class MemberRepositoryImpl implements MemberRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<Member> search(MemberSearchCond cond, Pageable pageable) {
+    public Page<MemberSearchResult> search(MemberSearchCond cond, Pageable pageable) {
 
-        List<Member> result = queryFactory
-                .selectFrom(member)
+        List<MemberSearchResult> result = queryFactory
+                .select(Projections.constructor(
+                        MemberSearchResult.class,
+                        member.id,
+                        member.email,
+                        member.name,
+                        member.phone,
+                        member.memberType,
+                        member.memberStatus,
+                        member.createdAt
+                ))
+                .from(member)
                 .where(
                         emailContains(cond.email()),
                         nameContains(cond.name()),

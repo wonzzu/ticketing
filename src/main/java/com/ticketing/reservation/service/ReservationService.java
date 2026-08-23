@@ -191,7 +191,6 @@ public class ReservationService {
                 if (status != TransactionSynchronization.STATUS_ROLLED_BACK) {
                     return;
                 }
-
                 try {
                     seatHoldService.releaseAll(scheduleId, seatIds, memberId);
                     log.warn("예매 트랜잭션 롤백으로 좌석 선점 해제: scheduleId={}, memberId={}, seatIds={}",
