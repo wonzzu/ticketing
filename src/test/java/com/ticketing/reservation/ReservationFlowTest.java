@@ -153,6 +153,8 @@ class ReservationFlowTest {
         var paidAmount = paymentRepository.findByReservationId(reservationId).orElseThrow().getAmount();
         System.out.printf("  2) 결제완료 → 예약 %s (기대 CONFIRMED) / 좌석 %s (기대 RESERVED) / 선점해제 %s (기대 true) / 금액 %s (기대 10000)%n",
                 afterPay.getStatus(), seatAfterPay, holdReleased, paidAmount);
+        System.out.printf("[결제 COMMIT] 예약=%s | 좌석=%s | 임시 선점 해제=%s%n",
+                afterPay.getStatus(), seatAfterPay, holdReleased);
         assertThat(afterPay.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
         assertThat(paymentRepository.existsByReservationId(reservationId)).isTrue();
         assertThat(seatAfterPay).isEqualTo(EventSeatStatus.RESERVED);
@@ -218,10 +220,15 @@ class ReservationFlowTest {
         String holdOwner = redis.opsForValue().get(
                 "seat:hold:" + scheduleId + ":" + eventSeatId
         );
+        boolean paymentExists = paymentRepository.existsByReservationId(reservationId);
+        boolean holdMaintained = memberId.toString().equals(holdOwner);
 
-        assertThat(paymentRepository.existsByReservationId(reservationId)).isFalse();
+        System.out.printf("[결제 ROLLBACK] 결제 존재=%s | 예약=%s | 좌석=%s | 선점 유지=%s%n",
+                paymentExists, reservation.getStatus(), seatStatus, holdMaintained);
+
+        assertThat(paymentExists).isFalse();
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PENDING);
         assertThat(seatStatus).isEqualTo(EventSeatStatus.AVAILABLE);
-        assertThat(holdOwner).isEqualTo(memberId.toString());
+        assertThat(holdMaintained).isTrue();
     }
 }

@@ -9,13 +9,19 @@
 </p>
 
 <p align="center">
-  <a href="https://ticketon.kro.kr"><b>서비스</b></a>
-  ·
-  <a href="https://ticketon.kro.kr/swagger-ui"><b>API 문서</b></a>
-  ·
-  <a href="docs/technical/README.md"><b>기술 문서</b></a>
-  ·
-  <a href="#기능-시연"><b>기능 시연</b></a>
+  <a href="https://ticketon.kro.kr">
+    <img src="https://img.shields.io/badge/배포_서비스-바로가기-2ea44f?style=for-the-badge&logo=googlechrome&logoColor=white" alt="배포 서비스 바로가기" />
+  </a>
+  <a href="https://ticketon.kro.kr/swagger-ui">
+    <img src="https://img.shields.io/badge/Swagger-API_DOCS-85ea2d?style=for-the-badge&logo=swagger&logoColor=black" alt="API 문서" />
+  </a>
+  <a href="docs/technical/README.md">
+    <img src="https://img.shields.io/badge/Technical-DOCS-4f46e5?style=for-the-badge&logo=readthedocs&logoColor=white" alt="기술 문서" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="#기능-시연"><b>🎬 기능 시연 보기</b></a>
 </p>
 
 ---
@@ -25,19 +31,17 @@
 | 해결 영역 | 적용 기술 | 검증 결과 |
 |---|---|---:|
 | 동일 좌석 경합 | Redis `SET NX` + 소유자 검증 Lua | 동시 요청 **100건 중 1건 성공** |
-| 대기열 정원 | Redis ZSet + 진입·승급 Lua | active **100명 이하 유지** |
+| 대기열 정원 | Redis ZSet + 진입·승급 Lua | 동시 실행에도 **설정 정원 초과 방지** |
 | 내 예매 N+1 | QueryDSL fetch join + batch fetch | **62 → 5 queries** |
 | 공연 상세 캐시 | Redis Cache + 무효화 | **616 → 1,660 TPS**, p95 **268 → 101ms** |
-| 관리자 회원 검색 | `(member_status, created_at)` 인덱스 | SQL **877 → 33ms** |
+| 관리자 회원 검색 | 복합 인덱스 + DTO Projection | p95 **31.84s → 746ms** |
 | 다중 인스턴스 배치 | Redisson 분산락 | 실행 **3회 → 1회**, 오류 **20건 → 0건** |
 
 ---
 
 ## 프로젝트 소개
 
-TicketOn은 공연 탐색부터 대기열, 좌석 선택, 예매, 결제, 취소와 정산까지 연결한 티켓팅 서비스입니다. 화면과 CRUD 구현에 머무르지 않고 **많은 요청이 같은 좌석·재고·배치 작업에 동시에 접근할 때 발생하는 경쟁 조건과 부분 실패**를 직접 재현하고 해결하는 데 초점을 두었습니다.
-
-Redis는 대기 순서, 좌석 선점, 쿠폰 재고처럼 빠르게 변하고 경쟁이 집중되는 상태를 담당합니다. MySQL은 예매·결제·정산의 최종 상태와 변경 이력을 관리합니다. 서로 다른 저장소를 하나의 로컬 트랜잭션으로 묶을 수 없는 구간은 트랜잭션 완료 콜백, 소유자 검증 Lua와 TTL로 연결했습니다.
+TicketOn은 공연 탐색부터 대기열, 좌석 선택, 예매, 결제, 취소와 정산까지 연결한 공연 예매 서비스입니다. 기능 구현 자체보다 **동일 자원에 요청이 집중될 때 발생하는 경쟁 조건, 저장소 간 부분 실패, 부하 상황의 병목을 재현하고 검증하는 것**에 초점을 두었습니다.
 
 ```text
 공연 탐색 → 대기열 → 좌석 선점 → 예매 → 결제 → 취소·정산
@@ -72,43 +76,36 @@ Redis는 대기 순서, 좌석 선점, 쿠폰 재고처럼 빠르게 변하고 �
 
 ## 핵심 기술 문제
 
-### 1. 대기열의 진입과 승급을 원자화
+이력서와 포트폴리오에서 소개한 성과를 **문제 재현 → 선택 근거 → 구현 → 테스트** 순서로 상세 문서에 정리했습니다.
 
-Redis ZSet에 대기 순번과 active 만료 시각을 저장합니다. 진입 과정의 중복 확인·정원 확인·순번 발급과 승급 과정의 만료 정리·빈자리 계산·사용자 이동을 각각 Lua 한 번으로 처리합니다. Redisson 분산락은 여러 인스턴스의 스케줄러 실행 주체를 하나로 제한하고, Lua는 Redis 상태 변경 자체의 원자성을 담당합니다.
+| 주제 | 해결한 문제 | 핵심 설계 | 코드·검증 |
+|---|---|---|---|
+| 대기열 상태 전이 | 신규 진입과 승급이 같은 active 여석을 중복 계산 | ZSet의 확인·순번 발급·상태 변경을 Lua로 단일 실행 | [대기열 원자성](docs/technical/queue-atomicity.md) |
+| 좌석 임시 소유권 | Redis 선점 후 DB 예매가 롤백되는 부분 실패 | `SET NX`·소유자 검증 Lua·트랜잭션 콜백·TTL | [좌석·예매 정합성](docs/technical/seat-consistency.md) |
+| 예매·결제 중복 | 재요청과 동일 예약 동시 결제로 데이터가 중복 생성 | 멱등키·`SELECT FOR UPDATE`·DB UNIQUE | [예매 멱등성과 결제 락](docs/technical/idempotency-payment-lock.md) |
+| API 성능 병목 | 쿼리를 개선한 뒤에도 남은 응답 지연 | Statistics·k6·Grafana·실행계획으로 병목을 단계별 분리 | [성능 병목 종합](docs/technical/performance-bottleneck.md) |
+| 다중 인스턴스 운영 | 서버 수만큼 중복 실행되는 배치와 Redis 단일 장애점 | Redisson 실행 조정·멱등 배치·Redis Sentinel | [분산 스케줄러](docs/technical/distributed-scheduler.md) · [Sentinel](docs/technical/redis-sentinel.md) |
 
-[대기열 원자성 상세 문서](docs/technical/queue-atomicity.md)
+<details>
+<summary><b>성능 개선 측정 근거 보기</b></summary>
 
-### 2. Redis 선점과 DB 예매 사이의 부분 실패 복구
+### 회원 검색 실행계획
 
-좌석은 `SET NX`와 7분 TTL로 임시 선점하고 결제 후 DB의 `RESERVED` 상태로 확정합니다. Redis 선점 후 예매 DB 트랜잭션이 롤백되면 `afterCompletion(ROLLED_BACK)`에서 보상 해제하고, 결제 성공 시에는 DB 커밋이 끝난 `afterCommit()`에서만 임시 선점을 제거합니다. 해제 Lua는 현재 값이 회원 ID와 일치할 때만 삭제합니다.
+| 복합 인덱스 적용 전 | 복합 인덱스 적용 후 |
+|---|---|
+| ![회원 검색 인덱스 전](docs/performance/member-index-before.png) | ![회원 검색 인덱스 후](docs/performance/member-index-after.png) |
 
-[좌석·예매 정합성 상세 문서](docs/technical/seat-consistency.md)
+### 인덱스 적용 후 확인한 커넥션 대기
 
-### 3. 예매 멱등성과 동일 예약의 동시 결제
+![HikariCP 평균 획득 대기시간](docs/performance/hikari-acquire-time.png)
 
-예매 재요청은 `(memberId, idempotencyKey)` 범위로 기존 결과를 반환하고 DB UNIQUE로 중복 생성을 막습니다. 동일 예약에 대한 결제 요청은 Reservation 행을 `SELECT ... FOR UPDATE`로 직렬화하고 `payment.reservation_id` UNIQUE를 최종 방어선으로 유지합니다.
+### 공연 상세 캐시 적용 후 DB 접근 제거
 
-[예매 멱등성과 결제 락 상세 문서](docs/technical/idempotency-payment-lock.md)
+| 캐시 적용 전 | 캐시 적용 후 |
+|---|---|
+| ![캐시 적용 전 HikariCP](docs/performance/event-cache-pool-before.png) | ![캐시 적용 후 HikariCP](docs/performance/event-cache-pool-after.png) |
 
-### 4. 선착순 쿠폰의 원자 발급과 멱등 복구
-
-발급자 중복 확인과 재고 차감을 하나의 Lua 스크립트로 묶었습니다. Redis 발급 후 DB 저장이 롤백되면 issued Set에서 회원이 실제로 제거된 경우에만 재고를 증가시키는 복구 Lua를 실행합니다.
-
-[쿠폰 발급 정합성 상세 문서](docs/technical/coupon-consistency.md)
-
-### 5. 측정 기반 성능 개선
-
-Hibernate Statistics로 N+1 쿼리 수를 고정하고, k6로 부하 구간의 p95와 처리량을 비교했습니다. 회원 검색은 `EXPLAIN ANALYZE`로 풀스캔과 filesort를 확인한 뒤 복합 인덱스를 적용했습니다. 공연 상세 캐시는 단건 조회 속도보다 반복 요청의 DB 도달을 제거하는 목적으로 적용했습니다.
-
-[N+1](docs/technical/n-plus-one.md) · [캐시](docs/technical/cache-performance.md) · [인덱스](docs/technical/member-index.md) · [성능 종합](docs/technical/performance-bottleneck.md)
-
-### 6. 다중 인스턴스 배치와 Redis 장애 전환
-
-Spring Boot 인스턴스가 늘어나면 `@Scheduled`도 인스턴스 수만큼 실행됩니다. Redisson `tryLock()`으로 정산과 통계 배치의 실행 주체를 제한하고, 배치 자체는 날짜 단위 재실행에 안전하도록 설계했습니다. Redis는 Master 1대, Replica 2대, Sentinel 3대로 구성해 Master 장애와 복구 흐름을 검증했습니다.
-
-[분산 스케줄러](docs/technical/distributed-scheduler.md) · [Redis Sentinel](docs/technical/redis-sentinel.md) · [배치 튜닝](docs/technical/batch-tuning.md)
-
-> 문제 재현, 대안 비교, 테스트와 측정 결과는 [전체 기술 문서](docs/technical/README.md)에 정리했습니다.
+</details>
 
 ---
 
@@ -241,20 +238,6 @@ Spring Boot 인스턴스가 늘어나면 `@Scheduled`도 인스턴스 수만큼 
 ![관리자 일별 매출](docs/시연영상.gif/관리자%20일별%20매출%20화면%20.gif)
 
 </details>
-
----
-
-## 배포 및 데모 계정
-
-- 서비스: [https://ticketon.kro.kr](https://ticketon.kro.kr)
-- Swagger: [https://ticketon.kro.kr/swagger-ui](https://ticketon.kro.kr/swagger-ui)
-- 공통 비밀번호: `test1234`
-
-| 역할 | 계정 |
-|---|---|
-| 관리자 | `admin@test.com` |
-| 판매자 | `seller1@test.com` |
-| 일반 회원 | `normal@test.com` |
 
 ---
 

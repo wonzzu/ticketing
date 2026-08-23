@@ -8,7 +8,6 @@ TicketOn은 기능 목록보다 **동시 요청이 같은 자원을 변경할 �
 |---|---|---|
 | [대기열 원자성](queue-atomicity.md) | 진입과 승급이 겹칠 때 active 정원이 초과되는 문제 | Redis ZSet, Lua, Redisson |
 | [좌석·예매 정합성](seat-consistency.md) | Redis 선점 성공 후 DB 저장이 실패하는 부분 실패 | `SET NX`, 소유자 검증 Lua, 트랜잭션 콜백 |
-| [쿠폰 발급 정합성](coupon-consistency.md) | 재고 초과·중복 발급과 DB 롤백 후 Redis 불일치 | 발급·복구 Lua, DB UNIQUE |
 | [예매 멱등성과 결제 직렬화](idempotency-payment-lock.md) | 재요청으로 예매·결제가 중복 생성되는 문제 | 멱등키, 비관적 락, DB UNIQUE |
 
 ## 성능 개선
@@ -18,7 +17,7 @@ TicketOn은 기능 목록보다 **동시 요청이 같은 자원을 변경할 �
 | [N+1 제거](n-plus-one.md) | QueryDSL fetch join + batch fetch | 예매 `62 → 5`, 좌석 `101 → 1 queries` |
 | [공연 상세 캐시](cache-performance.md) | Redis Cache + 변경 시 무효화 | `616 → 1,660 TPS`, p95 `268 → 101ms` |
 | [회원 검색 인덱스](member-index.md) | `(member_status, created_at)` 복합 인덱스 | SQL `877 → 33ms` |
-| [성능 병목 종합](performance-bottleneck.md) | k6·EXPLAIN·Grafana를 함께 분석 | 개선 후 이동한 병목과 실패한 시도 기록 |
+| [성능 병목 종합](performance-bottleneck.md) | 인덱스 이후 남은 지연을 Pool 실험과 DTO Projection으로 추적 | 회원 검색 p95 `31.84s → 746ms` |
 | [정산 배치 튜닝](batch-tuning.md) | chunk·fetchSize·Reader 실행계획 측정 | 근거 없는 튜닝을 원복하고 chunk 1,000 유지 |
 
 ## 다중 인스턴스·고가용성

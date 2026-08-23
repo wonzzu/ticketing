@@ -125,10 +125,17 @@ class ReservationSeatHoldCompensationTest {
         assertThat(activeScore).isNotNull();
 
         // then: DB는 rollback되고 Redis 좌석 선점도 보상 해제돼야 한다.
-        assertThat(reservationRepository.count()).isZero();
-        assertThat(redis.hasKey("seat:hold:" + scheduleId + ":" + eventSeatId)).isFalse();
-
+        long reservationCount = reservationRepository.count();
+        boolean holdExists = redis.hasKey("seat:hold:" + scheduleId + ":" + eventSeatId);
         boolean heldByMemberB = seatHoldService.holdAll(scheduleId, List.of(eventSeatId), memberBId);
+
+        System.out.printf(
+                "[예매 ROLLBACK] 예매=%d건 | 잔여 선점=%s | 다른 회원 재선점=%s%n",
+                reservationCount, holdExists, heldByMemberB
+        );
+
+        assertThat(reservationCount).isZero();
+        assertThat(holdExists).isFalse();
         assertThat(heldByMemberB).isTrue();
     }
 }
