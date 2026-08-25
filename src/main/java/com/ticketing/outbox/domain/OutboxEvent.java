@@ -65,4 +65,8 @@ public class OutboxEvent extends BaseEntity {
                 .status(OutboxEventStatus.PENDING)
                 .build();
     }
+
+    public void markPublished() {
+        this.status = OutboxEventStatus.PUBLISHED;
+    }
 }
