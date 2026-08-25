@@ -35,6 +35,7 @@ dependencies {
 
 	// === Redis (대기열, 캐시, 분산락) ===
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	// === 분산 락 (Redisson) ===
 	implementation 'org.redisson:redisson:3.34.1'
 	// === AOP (Rate Limiting) ===

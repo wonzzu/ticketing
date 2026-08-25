@@ -36,6 +36,20 @@ services:
       timeout: 3s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   spring:
     image: ghcr.io/wonzzu/ticketon-spring:latest
     restart: unless-stopped
@@ -45,12 +59,16 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       # LocalDateTime 응답과 DB 시간대를 한국 표준시로 통일한다.
       JAVA_OPTS: "-Xmx350m -Duser.timezone=Asia/Seoul"
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
@@ -73,3 +91,4 @@ services:
 volumes:
   mysql-data:
   redis-data:                        # 쿠폰 재고 등 Redis가 원본인 데이터 보존
+  rabbitmq-data:

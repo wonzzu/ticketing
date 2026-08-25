@@ -35,6 +35,23 @@ services:
       timeout: 3s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-ticketon}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-ticketon-local-password}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   spring:
     build: .
     restart: unless-stopped
@@ -44,12 +61,16 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-ticketon}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-ticketon-local-password}
       # LocalDateTime 응답과 DB 시간대를 한국 표준시로 통일한다.
       JAVA_OPTS: "-Xmx350m -Duser.timezone=Asia/Seoul"
     depends_on:
       mysql:
         condition: service_healthy   # MySQL 준비된 뒤에 뜸 (커넥션 실패 방지)
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
@@ -72,3 +93,4 @@ services:
 volumes:
   mysql-data:                        # DB 데이터 영속 (컨테이너 지워도 유지)
   redis-data:                        # 쿠폰 재고 등 Redis가 원본인 데이터 보존
+  rabbitmq-data:

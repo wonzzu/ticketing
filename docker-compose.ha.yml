@@ -73,6 +73,20 @@ services:
       ha-net:
         ipv4_address: 172.30.0.23
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ticketon
+      RABBITMQ_DEFAULT_PASS: ticketon-local-password
+    networks:
+      - ha-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   spring1:
     build: .
     image: ticketon-ha:local
@@ -84,12 +98,17 @@ services:
       DB_USERNAME: root
       DB_PASSWORD: qwer1234
       JWT_SECRET: dev-only-secret-key-must-be-at-least-32-bytes-long-12345
+      RABBITMQ_USERNAME: ticketon
+      RABBITMQ_PASSWORD: ticketon-local-password
     extra_hosts: &host-gateway
       - "host.docker.internal:host-gateway"
     networks: &app-net
       - ha-net
     ports:
       - "8081:8080"
+    depends_on: &spring-depends
+      rabbitmq:
+        condition: service_healthy
     healthcheck: &healthcheck
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
       interval: 10s
@@ -106,6 +125,7 @@ services:
     networks: *app-net
     ports:
       - "8082:8080"
+    depends_on: *spring-depends
     healthcheck: *healthcheck
 
   spring3:
@@ -117,6 +137,7 @@ services:
     networks: *app-net
     ports:
       - "8083:8080"
+    depends_on: *spring-depends
     healthcheck: *healthcheck
 
   nginx:
