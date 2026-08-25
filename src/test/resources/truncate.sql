@@ -21,6 +21,7 @@ TRUNCATE TABLE member_history;
 TRUNCATE TABLE review;
 TRUNCATE TABLE daily_event_stats;
 TRUNCATE TABLE daily_sales_stats;
+TRUNCATE TABLE stats_dirty_date;
 TRUNCATE TABLE settlement_detail;
 TRUNCATE TABLE settlement;
 TRUNCATE TABLE settlement_dirty_date;
