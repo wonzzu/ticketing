@@ -1,0 +1,23 @@
+실험 시각: 2026-08-25 20:12 KST
+실험 환경: 로컬 Docker Compose HA
+
+[애플리케이션 기준 상태]
+Nginx    http://localhost:8080/actuator/health = UP
+Spring1  http://localhost:8081/actuator/health = UP
+Spring2  http://localhost:8082/actuator/health = UP
+Spring3  http://localhost:8083/actuator/health = UP
+
+[대상 데이터]
+reservation_id      = 2998531
+payment_id          = 2998531
+member_id           = 130348
+seller_id           = 3
+event_id            = 3
+settlement_date     = 2026-07-19
+reservation_status  = CONFIRMED
+payment_status      = PAID
+payment_amount      = 154000
+settlement_gross    = 1133880000
+settlement_net      = 1077186000
+settlement_dirty    = 0
+

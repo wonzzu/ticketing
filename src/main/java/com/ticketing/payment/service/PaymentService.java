@@ -1,7 +1,12 @@
 package com.ticketing.payment.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ticketing.event.service.SeatHoldService;
 import com.ticketing.global.exception.BaseException;
+import com.ticketing.outbox.domain.OutboxEvent;
+import com.ticketing.outbox.dto.PaymentCanceledOutboxPayload;
+import com.ticketing.outbox.repository.OutboxEventRepository;
 import com.ticketing.payment.domain.Payment;
 import com.ticketing.payment.domain.PaymentHistory;
 import com.ticketing.payment.dto.PaymentCanceledEvent;
@@ -36,7 +41,9 @@ public class PaymentService {
     private final SeatHoldService seatHoldService;
     private final ReservationConfirmService reservationConfirmService;
     private final PaymentHistoryRepository paymentHistoryRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public PaymentResponseDto pay(Long memberId, PaymentCreateDto dto) {
@@ -79,11 +86,23 @@ public class PaymentService {
             paymentHistoryRepository.save(PaymentHistory.of(payment, reason));
 
             var event = payment.getReservation().getEventSchedule().getEvent();
-            eventPublisher.publishEvent(new PaymentCanceledEvent(
-                    event.getSeller().getId(), event.getId(), event.getEndDate(),
-                    payment.getCreatedAt().toLocalDate()));
+            var canceledEvent = new PaymentCanceledEvent(event.getSeller().getId(), event.getId(),
+                    event.getEndDate(), payment.getCreatedAt().toLocalDate());
+            var payload = new PaymentCanceledOutboxPayload(canceledEvent.sellerId(), canceledEvent.eventId(),
+                    canceledEvent.settlementDate(), canceledEvent.paidDate());
+
+            outboxEventRepository.save(OutboxEvent.paymentCanceled(payment.getId(), serialize(payload)));
+            eventPublisher.publishEvent(canceledEvent);
 
         });
+    }
+
+    private String serialize(PaymentCanceledOutboxPayload payload) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("결제 취소 Outbox payload 직렬화에 실패했습니다.", e);
+        }
     }
 
     private void registerSeatHoldRelease(Long scheduleId, List<Long> seatIds, Long memberId) {
