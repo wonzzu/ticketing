@@ -26,6 +26,7 @@ TicketOn은 기능 목록보다 **동시 요청이 같은 자원을 변경할 �
 |---|---|
 | [분산 스케줄러](distributed-scheduler.md) | 서버 3대에서 정산 실행 `3회 → 1회`, 5분간 오류 `20 → 0` |
 | [Redis Sentinel](redis-sentinel.md) | 마스터 장애·재선출·부활 노드 복제본 편입과 Redisson 락 복제 검증 |
+| [결제 취소 후속 처리 유실](payment-cancel-ha-loss.md) | 서버 복구 후에도 `AFTER_COMMIT` 정산 Dirty가 유실되는 상태 재현 |
 | [기술 의사결정](architecture-decisions.md) | Redis ZSet·Lua·Redisson·Sentinel·MQ 미도입의 선택 근거 |
 
 ## 검증 원칙

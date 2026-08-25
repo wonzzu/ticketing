@@ -45,7 +45,8 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      JAVA_OPTS: "-Xmx350m"
+      # LocalDateTime 응답과 DB 시간대를 한국 표준시로 통일한다.
+      JAVA_OPTS: "-Xmx350m -Duser.timezone=Asia/Seoul"
     depends_on:
       mysql:
         condition: service_healthy

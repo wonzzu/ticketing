@@ -79,7 +79,8 @@ services:
     restart: unless-stopped
     environment: &spring-env
       SPRING_PROFILES_ACTIVE: ha
-      JAVA_OPTS: "-Xmx256m"
+      # LocalDateTime 응답과 DB 시간대를 한국 표준시로 통일한다.
+      JAVA_OPTS: "-Xmx256m -Duser.timezone=Asia/Seoul"
       DB_USERNAME: root
       DB_PASSWORD: qwer1234
       JWT_SECRET: dev-only-secret-key-must-be-at-least-32-bytes-long-12345

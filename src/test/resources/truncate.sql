@@ -4,6 +4,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 TRUNCATE TABLE payment_history;
+TRUNCATE TABLE outbox_event;
 TRUNCATE TABLE payment;
 TRUNCATE TABLE reservation_history;
 TRUNCATE TABLE reservation_seat;

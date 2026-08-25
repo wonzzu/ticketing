@@ -1,0 +1,26 @@
+실험 시각: 2026-08-25 20:13 KST
+
+[서버 복구]
+Spring1 재기동 후 /actuator/health = UP
+Nginx /actuator/health = HTTP 200
+Spring2 /actuator/health = UP
+Spring3 /actuator/health = UP
+
+[복구 이후 DB 상태]
+payment_id                   = 2998531
+payment_status               = CANCELED
+reservation_status           = CANCEL
+canceled_amount              = 154000
+settlement_dirty_count       = 0
+settlement_gross_amount      = 1133880000
+settlement_net_amount        = 1077186000
+
+[판정]
+서버와 HTTP 서비스는 복구됐지만, 커밋된 결제 취소에 대응하는 정산 Dirty가 생성되지 않았다.
+따라서 기존 정산금액은 취소 전 값으로 남았고 재집계를 시작할 durable한 신호도 존재하지 않았다.
+
+[별도 관측]
+Spring1 종료 직후 Spring2와 Spring3의 직접 health는 UP이었다.
+다만 현재 Nginx 설정은 짧은 proxy connect timeout과 proxy_next_upstream 설정이 없어
+종료된 Spring1 연결을 즉시 우회하지 못했다. 이는 이벤트 유실과 별개의 HA 설정 개선 항목이다.
+
