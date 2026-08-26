@@ -2,6 +2,7 @@ package com.ticketing.outbox.messaging;
 
 import com.ticketing.config.RabbitMqConfig;
 import com.ticketing.outbox.dto.PaymentCanceledOutboxPayload;
+import com.ticketing.outbox.exception.DuplicateMessageException;
 import com.ticketing.outbox.service.PaymentCanceledMessageHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +20,12 @@ public class PaymentCanceledMessageConsumer {
     @RabbitListener(queues = RabbitMqConfig.PAYMENT_CANCELED_QUEUE)
     public void consume(PaymentCanceledOutboxPayload payload,
                         @Header("messageId") String messageId) {
-        messageHandler.handle(payload);
-        log.info("결제 취소 메시지 처리 완료: messageId={}, eventId={}",
-                messageId, payload.performanceEventId());
+        try {
+            messageHandler.handle(messageId, payload);
+            log.info("결제 취소 메시지 처리 완료: messageId={}, eventId={}",
+                    messageId, payload.performanceEventId());
+        } catch (DuplicateMessageException e) {
+            log.info("중복 결제 취소 메시지 처리 생략: messageId={}", messageId);
+        }
     }
 }

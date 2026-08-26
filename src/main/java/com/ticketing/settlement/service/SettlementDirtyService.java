@@ -7,7 +7,6 @@ import com.ticketing.settlement.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -20,7 +19,7 @@ public class SettlementDirtyService {
     private final SettlementRepository settlementRepository;
     private final SettlementDirtyDateRepository dirtyDateRepository;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void markDirtyIfSettled(Long sellerId, Long eventId, LocalDate settlementDate) {
 
         if (!settlementRepository.existsByEventId(eventId)) return;

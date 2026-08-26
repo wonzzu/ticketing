@@ -6,7 +6,6 @@ import com.ticketing.statistics.repository.StatsDirtyDateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -19,7 +18,7 @@ public class StatsDirtyService {
     private final DailySalesStatsRepository dailySalesStatsRepository;
     private final StatsDirtyDateRepository dirtyDateRepository;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void markDirtyIfAggregated(LocalDate paidDate) {
         if (!dailySalesStatsRepository.existsByStatDate(paidDate)) return;
         if (dirtyDateRepository.existsByStatDate(paidDate)) return;
