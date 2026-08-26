@@ -20,6 +20,7 @@ import com.ticketing.settlement.domain.SettlementDirtyDate;
 import com.ticketing.settlement.repository.SettlementDetailRepository;
 import com.ticketing.settlement.repository.SettlementDirtyDateRepository;
 import com.ticketing.settlement.repository.SettlementRepository;
+import com.ticketing.settlement.service.SettlementDirtyService;
 import com.ticketing.venue.domain.Venue;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -36,12 +37,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 정산 배치 — 명세 생성 / 스냅샷 / 취소 감지 / 재집계 / 멱등.
- *
- * ※ @Transactional을 쓰지 않는다. 취소 감지가 @TransactionalEventListener(AFTER_COMMIT)이라
- *    테스트 트랜잭션이 롤백되면 이벤트가 발화하지 않는다. 정리는 truncate.sql이 담당.
- */
+/** 정산 배치 — 명세 생성 / 스냅샷 / 취소 반영 / 재집계 / 멱등. */
 @SpringBootTest
 @ActiveProfiles("test")
 @Sql(scripts = "/truncate.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
@@ -52,6 +48,7 @@ class SettlementFlowTest {
     @Autowired SettlementRepository settlementRepository;
     @Autowired SettlementDetailRepository settlementDetailRepository;
     @Autowired SettlementDirtyDateRepository settlementDirtyDateRepository;
+    @Autowired SettlementDirtyService settlementDirtyService;
     @Autowired ReservationService reservationService;
     @Autowired TransactionTemplate tx;
     @PersistenceContext EntityManager em;
@@ -112,6 +109,12 @@ class SettlementFlowTest {
         reservationService.cancel(canceledReservationId, memberId, CancelReason.CHANGE_OF_MIND, null);
     }
 
+    private void markSettlementDirty() {
+        Settlement settlement = settlementRepository.findAll().get(0);
+        settlementDirtyService.markDirtyIfSettled(
+                settlement.getSellerId(), settlement.getEventId(), settlement.getSettlementDate());
+    }
+
     @Test
     @DisplayName("배치 실행 시 건별 명세를 만들고 집계한다")
     void 명세를_생성하고_집계한다() {
@@ -156,7 +159,7 @@ class SettlementFlowTest {
     }
 
     @Test
-    @DisplayName("정산이 끝난 공연의 결제를 취소하면 재집계 대기열에 적재된다")
+    @DisplayName("정산 후 취소된 공연을 재집계 대기열에 적재할 수 있다")
     void 정산_후_취소를_대기열에_적재한다() {
         // given
         runSettlementBatch();
@@ -164,6 +167,7 @@ class SettlementFlowTest {
 
         // when
         cancelOnePayment();
+        markSettlementDirty();
 
         // then
         assertThat(settlementDirtyDateRepository.count()).isEqualTo(1);
@@ -179,6 +183,7 @@ class SettlementFlowTest {
         // given
         runSettlementBatch();
         cancelOnePayment();
+        markSettlementDirty();
 
         // when
         settlementScheduler.reaggregateDirty();
