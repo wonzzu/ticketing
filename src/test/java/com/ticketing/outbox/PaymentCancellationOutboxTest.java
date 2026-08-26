@@ -23,6 +23,10 @@ import com.ticketing.reservation.domain.Reservation;
 import com.ticketing.reservation.domain.ReservationStatus;
 import com.ticketing.reservation.repository.ReservationRepository;
 import com.ticketing.reservation.service.ReservationService;
+import com.ticketing.settlement.domain.Settlement;
+import com.ticketing.settlement.repository.SettlementDirtyDateRepository;
+import com.ticketing.statistics.domain.DailySalesStats;
+import com.ticketing.statistics.repository.StatsDirtyDateRepository;
 import com.ticketing.venue.domain.Venue;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -55,6 +59,8 @@ class PaymentCancellationOutboxTest {
     @Autowired ReservationRepository reservationRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired OutboxEventRepository outboxEventRepository;
+    @Autowired SettlementDirtyDateRepository settlementDirtyDateRepository;
+    @Autowired StatsDirtyDateRepository statsDirtyDateRepository;
     @Autowired TransactionTemplate tx;
     @MockitoSpyBean ObjectMapper objectMapper;
     @PersistenceContext EntityManager em;
@@ -95,6 +101,8 @@ class PaymentCancellationOutboxTest {
 
             Payment payment = Payment.paid(reservation, 100_000);
             em.persist(payment);
+            em.persist(Settlement.of(seller.getId(), event.getId(), settlementDate, 100_000, 5_000, 95_000));
+            em.persist(DailySalesStats.of(payment.getCreatedAt().toLocalDate(), 1, 100_000));
             em.flush();
 
             memberId = member.getId();
@@ -103,6 +111,16 @@ class PaymentCancellationOutboxTest {
             sellerId = seller.getId();
             performanceEventId = event.getId();
         });
+    }
+
+    @Test
+    @DisplayName("결제 취소 트랜잭션은 Outbox만 저장하고 Dirty를 직접 등록하지 않는다")
+    void 결제_취소는_재집계_대상을_직접_등록하지_않는다() {
+        reservationService.cancel(reservationId, memberId, CancelReason.CHANGE_OF_MIND, null);
+
+        assertThat(outboxEventRepository.count()).isEqualTo(1);
+        assertThat(settlementDirtyDateRepository.count()).isZero();
+        assertThat(statsDirtyDateRepository.count()).isZero();
     }
 
     @AfterEach

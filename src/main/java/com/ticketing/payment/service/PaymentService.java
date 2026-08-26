@@ -9,7 +9,6 @@ import com.ticketing.outbox.dto.PaymentCanceledOutboxPayload;
 import com.ticketing.outbox.repository.OutboxEventRepository;
 import com.ticketing.payment.domain.Payment;
 import com.ticketing.payment.domain.PaymentHistory;
-import com.ticketing.payment.dto.PaymentCanceledEvent;
 import com.ticketing.payment.dto.request.PaymentCreateDto;
 import com.ticketing.payment.dto.response.PaymentResponseDto;
 import com.ticketing.payment.repository.PaymentHistoryRepository;
@@ -19,7 +18,6 @@ import com.ticketing.reservation.repository.ReservationRepository;
 import com.ticketing.reservation.service.ReservationConfirmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -42,7 +40,6 @@ public class PaymentService {
     private final ReservationConfirmService reservationConfirmService;
     private final PaymentHistoryRepository paymentHistoryRepository;
     private final OutboxEventRepository outboxEventRepository;
-    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -86,14 +83,10 @@ public class PaymentService {
             paymentHistoryRepository.save(PaymentHistory.of(payment, reason));
 
             var event = payment.getReservation().getEventSchedule().getEvent();
-            var canceledEvent = new PaymentCanceledEvent(event.getSeller().getId(), event.getId(),
+            var payload = new PaymentCanceledOutboxPayload(event.getSeller().getId(), event.getId(),
                     event.getEndDate(), payment.getCreatedAt().toLocalDate());
-            var payload = new PaymentCanceledOutboxPayload(canceledEvent.sellerId(), canceledEvent.eventId(),
-                    canceledEvent.settlementDate(), canceledEvent.paidDate());
 
             outboxEventRepository.save(OutboxEvent.paymentCanceled(payment.getId(), serialize(payload)));
-            eventPublisher.publishEvent(canceledEvent);
-
         });
     }
 
