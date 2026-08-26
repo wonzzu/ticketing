@@ -1,6 +1,7 @@
 package com.ticketing.outbox;
 
 import com.ticketing.outbox.dto.PaymentCanceledOutboxPayload;
+import com.ticketing.outbox.repository.ProcessedMessageRepository;
 import com.ticketing.outbox.service.PaymentCanceledMessageHandler;
 import com.ticketing.settlement.service.SettlementDirtyService;
 import com.ticketing.statistics.service.StatsDirtyService;
@@ -17,8 +18,10 @@ class PaymentCanceledMessageHandlerTest {
 
     private final SettlementDirtyService settlementDirtyService = mock(SettlementDirtyService.class);
     private final StatsDirtyService statsDirtyService = mock(StatsDirtyService.class);
+    private final ProcessedMessageRepository processedMessageRepository = mock(ProcessedMessageRepository.class);
     private final PaymentCanceledMessageHandler messageHandler =
-            new PaymentCanceledMessageHandler(settlementDirtyService, statsDirtyService);
+            new PaymentCanceledMessageHandler(
+                    processedMessageRepository, settlementDirtyService, statsDirtyService);
 
     @Test
     @DisplayName("결제 취소 일자를 정산과 통계 재집계 대상으로 등록한다")
@@ -28,7 +31,7 @@ class PaymentCanceledMessageHandlerTest {
         PaymentCanceledOutboxPayload payload =
                 new PaymentCanceledOutboxPayload(1L, 2L, settlementDate, paidDate);
 
-        messageHandler.handle(payload);
+        messageHandler.handle("message-1", payload);
 
         verify(settlementDirtyService).markDirtyIfSettled(1L, 2L, settlementDate);
         verify(statsDirtyService).markDirtyIfAggregated(paidDate);
